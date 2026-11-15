@@ -224,15 +224,15 @@ public actor LlamaEngine {
 }
 
 private actor LlamaEnginePool {
-    private var engine: LlamaEngine?
+    private var loadedEngine: LlamaEngine?
     private var loadedPath: String?
 
-    func engine(for modelPath: String) throws -> LlamaEngine {
-        if let engine, loadedPath == modelPath {
-            return engine
+    func getEngine(for modelPath: String) throws -> LlamaEngine {
+        if let loadedEngine, loadedPath == modelPath {
+            return loadedEngine
         }
         let newEngine = try LlamaEngine(modelPath: modelPath)
-        engine = newEngine
+        loadedEngine = newEngine
         loadedPath = modelPath
         return newEngine
     }
@@ -268,7 +268,7 @@ public final class LlamaLocalChatProvider: ChatProvider, @unchecked Sendable {
                     guard await isAvailable() else {
                         throw ChatProviderError.unavailable(.local)
                     }
-                    let engine = try await enginePool.engine(for: modelURL.path)
+                    let engine = try await enginePool.getEngine(for: modelURL.path)
                     let prompt = Self.makePrompt(from: messages)
                     let output = await engine.generate(prompt: prompt, maxTokens: maxTokens)
                     for try await piece in output {
