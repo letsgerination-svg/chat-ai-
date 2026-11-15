@@ -156,11 +156,17 @@ struct ChatScreen: View {
                 .padding()
 
                 if model.messages.isEmpty {
-                    ContentUnavailableView(
-                        "Новый чат",
-                        systemImage: "bubble.left.and.bubble.right",
-                        description: Text("Задайте вопрос. История хранится на устройстве.")
-                    )
+                    VStack(spacing: 12) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 38))
+                            .foregroundStyle(.secondary)
+                        Text("Новый чат").font(.title3.weight(.semibold))
+                        Text("Задайте вопрос. История хранится на устройстве.")
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
                 } else {
                     ScrollViewReader { proxy in
                         ScrollView {
