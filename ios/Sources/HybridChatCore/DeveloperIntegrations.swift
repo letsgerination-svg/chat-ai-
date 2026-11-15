@@ -62,7 +62,7 @@ public final class GitHubIntegration: Sendable {
     }
 
     public func readTextFile(owner: String, repository: String, path: String, branch: String? = nil) async throws -> String {
-        let safePath = path.split(separator: "/").map(Self.encodePathComponent).joined(separator: "/")
+        let safePath = path.split(separator: "/").map { Self.encodePathComponent(String($0)) }.joined(separator: "/")
         var endpoint = "/repos/\(Self.encodePathComponent(owner))/\(Self.encodePathComponent(repository))/contents/\(safePath)"
         if let branch, var components = URLComponents(string: endpoint) {
             components.queryItems = [URLQueryItem(name: "ref", value: branch)]
@@ -138,12 +138,14 @@ public final class CloudflareIntegration: Sendable {
     }
 
     public func accounts() async throws -> [CloudflareAccount] {
-        try await request(path: "/accounts?per_page=50")
+        let result: [CloudflareAccount] = try await request(path: "/accounts?per_page=50")
+        return result
     }
 
     public func workers(accountID: String) async throws -> [CloudflareWorker] {
         let safeID = accountID.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-"))) ?? accountID
-        try await request(path: "/accounts/\(safeID)/workers/scripts")
+        let result: [CloudflareWorker] = try await request(path: "/accounts/\(safeID)/workers/scripts")
+        return result
     }
 
     private func request<Result: Decodable>(path: String) async throws -> Result {
