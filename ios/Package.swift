@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "HybridChatCore",
-    platforms: [.iOS(.v16_4), .macOS(.v13_3)],
+    platforms: [.iOS("16.4"), .macOS("13.3")],
     products: [
         .library(name: "HybridChatCore", targets: ["HybridChatCore"]),
         .library(name: "LlamaRuntime", targets: ["LlamaRuntime"])
