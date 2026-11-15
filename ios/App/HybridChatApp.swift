@@ -1,5 +1,6 @@
 import SwiftUI
 import HybridChatCore
+import LlamaRuntime
 
 @main
 struct HybridChatApp: App {
@@ -19,24 +20,31 @@ final class ChatViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var apiKeyInput = ""
     @Published var settingsMessage: String?
+    @Published var isLocalModelInstalled = false
 
     let networkMonitor = NetworkStatusMonitor()
     private let keyStore = KeychainAPIKeyStore()
     private let conversationStore: ConversationStore
     private let router: ProviderRouter
+    private let localProvider: LlamaLocalChatProvider
     private var conversation = ChatConversation()
 
     init() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         conversationStore = ConversationStore(fileURL: documents.appendingPathComponent("chat-history.json"))
+        let modelsDirectory = documents.appendingPathComponent("Models", isDirectory: true)
+        localProvider = LlamaLocalChatProvider(
+            modelURL: modelsDirectory.appendingPathComponent("Qwen3-1.7B-Q4_K_M.gguf")
+        )
         let remote = DeepSeekChatProvider(keyStore: keyStore)
-        router = ProviderRouter(local: UnavailableLocalProvider(), remote: remote)
+        router = ProviderRouter(local: localProvider, remote: remote)
         networkMonitor.start()
 
         Task { await loadHistory() }
     }
 
     func loadHistory() async {
+        isLocalModelInstalled = await localProvider.isAvailable()
         do {
             let saved = try await conversationStore.load()
             if let latest = saved.sorted(by: { $0.updatedAt > $1.updatedAt }).first {
@@ -124,18 +132,6 @@ final class ChatViewModel: ObservableObject {
             try await conversationStore.save([conversation])
         } catch {
             errorMessage = "Не удалось сохранить историю: \(error.localizedDescription)"
-        }
-    }
-}
-
-private struct UnavailableLocalProvider: ChatProvider {
-    let id: ChatProviderID = .local
-
-    func isAvailable() async -> Bool { false }
-
-    func streamReply(to messages: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
-        AsyncThrowingStream { continuation in
-            continuation.finish(throwing: ChatProviderError.unavailable(.local))
         }
     }
 }
@@ -286,7 +282,10 @@ private struct SettingsScreen: View {
 
                 Section("Состояние") {
                     LabeledContent("Сеть", value: model.networkMonitor.isConnected ? "Доступна" : "Нет соединения")
-                    LabeledContent("Офлайн-модель", value: "Не установлена")
+                    LabeledContent("Офлайн-модель", value: model.isLocalModelInstalled ? "Найдена" : "Не установлена")
+                    Text("Файл модели: Documents/Models/Qwen3-1.7B-Q4_K_M.gguf")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Настройки")
