@@ -69,12 +69,14 @@ final class ChatViewModel: ObservableObject {
         messages.append(userMessage)
         await persist()
 
+        var pendingAssistantID: UUID?
         do {
             let provider = try await router.provider(
                 for: mode,
                 networkAvailable: networkMonitor.isConnected
             )
             let assistantID = UUID()
+            pendingAssistantID = assistantID
             let createdAt = Date()
             messages.append(ChatMessage(id: assistantID, role: .assistant, content: "", createdAt: createdAt))
 
@@ -92,6 +94,9 @@ final class ChatViewModel: ObservableObject {
             }
             await persist()
         } catch {
+            if let pendingAssistantID {
+                messages.removeAll { $0.id == pendingAssistantID && $0.content.isEmpty }
+            }
             errorMessage = error.localizedDescription
             await persist()
         }
