@@ -20,6 +20,15 @@ final class ChatViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var apiKeyInput = ""
     @Published var settingsMessage: String?
+    @Published var githubTokenInput = ""
+    @Published var cloudflareTokenInput = ""
+    @Published var githubConnectionStatus = "Не подключён"
+    @Published var cloudflareConnectionStatus = "Не подключён"
+    @Published var isCheckingGitHub = false
+    @Published var isCheckingCloudflare = false
+
+    private let githubIntegration = GitHubIntegration()
+    private let cloudflareIntegration = CloudflareIntegration()
     @Published var isLocalModelInstalled = false
     @Published var isDownloadingModel = false
     @Published var modelDownloadMessage: String?
@@ -121,6 +130,54 @@ final class ChatViewModel: ObservableObject {
         } catch {
             settingsMessage = "Не удалось удалить ключ: \(error.localizedDescription)"
         }
+    }
+
+    func saveGitHubToken() {
+        do {
+            try githubIntegration.saveToken(githubTokenInput)
+            githubTokenInput = ""
+            githubConnectionStatus = "Токен сохранён. Проверяю…"
+            Task { await checkGitHubConnection() }
+        } catch { githubConnectionStatus = "Ошибка: \(error.localizedDescription)" }
+    }
+
+    func checkGitHubConnection() async {
+        guard !isCheckingGitHub else { return }
+        isCheckingGitHub = true
+        defer { isCheckingGitHub = false }
+        do {
+            let login = try await githubIntegration.validateConnection()
+            githubConnectionStatus = "Подключён: @\(login)"
+        } catch { githubConnectionStatus = "Ошибка: \(error.localizedDescription)" }
+    }
+
+    func disconnectGitHub() {
+        do { try githubIntegration.disconnect(); githubConnectionStatus = "Отключён" }
+        catch { githubConnectionStatus = "Ошибка: \(error.localizedDescription)" }
+    }
+
+    func saveCloudflareToken() {
+        do {
+            try cloudflareIntegration.saveToken(cloudflareTokenInput)
+            cloudflareTokenInput = ""
+            cloudflareConnectionStatus = "Токен сохранён. Проверяю…"
+            Task { await checkCloudflareConnection() }
+        } catch { cloudflareConnectionStatus = "Ошибка: \(error.localizedDescription)" }
+    }
+
+    func checkCloudflareConnection() async {
+        guard !isCheckingCloudflare else { return }
+        isCheckingCloudflare = true
+        defer { isCheckingCloudflare = false }
+        do {
+            try await cloudflareIntegration.validateConnection()
+            cloudflareConnectionStatus = "Подключён"
+        } catch { cloudflareConnectionStatus = "Ошибка: \(error.localizedDescription)" }
+    }
+
+    func disconnectCloudflare() {
+        do { try cloudflareIntegration.disconnect(); cloudflareConnectionStatus = "Отключён" }
+        catch { cloudflareConnectionStatus = "Ошибка: \(error.localizedDescription)" }
     }
 
     func downloadModel() async {
@@ -306,10 +363,38 @@ private struct SettingsScreen: View {
                     }
                 }
 
+                Section("GitHub") {
+                    SecureField("Fine-grained access token", text: $model.githubTokenInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button("Сохранить токен в Keychain") { model.saveGitHubToken() }
+                        .disabled(model.githubTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Проверить подключение") { Task { await model.checkGitHubConnection() } }
+                    if model.isCheckingGitHub { ProgressView() }
+                    Text(model.githubConnectionStatus).font(.footnote)
+                    Button("Отключить GitHub", role: .destructive) { model.disconnectGitHub() }
+                    Text("Fine-grained token только для нужных репозиториев: Metadata read, Contents read/write, Pull requests read/write.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+
+                Section("Cloudflare") {
+                    SecureField("Cloudflare API token", text: $model.cloudflareTokenInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button("Сохранить токен в Keychain") { model.saveCloudflareToken() }
+                        .disabled(model.cloudflareTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Проверить подключение") { Task { await model.checkCloudflareConnection() } }
+                    if model.isCheckingCloudflare { ProgressView() }
+                    Text(model.cloudflareConnectionStatus).font(.footnote)
+                    Button("Отключить Cloudflare", role: .destructive) { model.disconnectCloudflare() }
+                    Text("Используйте API Token с минимальными правами на нужный аккаунт. Не используйте Global API Key.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+
                 Section("Приватность") {
                     Label("История хранится локально на iPhone", systemImage: "lock.fill")
                     Label("Ключ хранится в iOS Keychain", systemImage: "key.fill")
-                    Text("В онлайн-режиме сообщения отправляются DeepSeek для генерации ответа. Офлайн-движок ещё не подключён.")
+                    Text("Сообщения передаются DeepSeek только при онлайн-генерации. Токены GitHub и Cloudflare хранятся в Keychain и отправляются только соответствующим API.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
