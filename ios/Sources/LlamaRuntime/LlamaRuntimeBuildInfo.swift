@@ -1,5 +1,5 @@
 import Foundation
-import LlamaFramework
+import llama
 
 /// Confirms that the official llama.cpp Apple XCFramework is linked.
 /// The model-loading and token-generation adapter is implemented in the next layer.
