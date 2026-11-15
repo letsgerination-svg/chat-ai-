@@ -1,0 +1,24 @@
+name: iOS App Build
+
+on:
+  push:
+    branches:
+      - feature/hybrid-offline-ios
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ios-simulator-build:
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build iOS app for simulator
+        working-directory: ios
+        run: xcodebuild -project HybridChat.xcodeproj -scheme HybridChat -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
