@@ -73,7 +73,7 @@ public final class DeepSeekChatProvider: ChatProvider, @unchecked Sendable {
 
     public func isAvailable() async -> Bool {
         guard let key = try? keyStore.read() else { return false }
-        return !(key?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     public func streamReply(
