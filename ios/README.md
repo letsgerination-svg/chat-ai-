@@ -16,14 +16,14 @@ This directory contains the native iOS foundation and the first SwiftUI app shel
 - `project.yml`: XcodeGen specification for the iOS app target.
 - `Tests/HybridChatCoreTests`: routing and persistence tests.
 - `.github/workflows/ios-core-tests.yml`: Swift package build and tests.
-- `.github/workflows/ios-app-build.yml`: generated Xcode project and iOS Simulator build.
+- `.github/workflows/ios-app-build.yml`: generates the Xcode project, builds for the iOS device SDK, archives the app without signing, packages an unsigned IPA, and uploads it as a GitHub Actions artifact.
 
 ## Current limitations
 
 - The llama.cpp adapter and model downloader are implemented in source. A complete simulator/device build and real-device inference still need to pass verification before offline generation can be considered proven.
 - The app can use DeepSeek after the user adds their own API key in Settings. The key is kept in Keychain and is not bundled into the app.
 - The current history UI opens the most recent conversation; a multi-conversation sidebar/list is still pending.
-- The current simulator workflow verifies compilation only. It does not create a signed IPA.
+- CI can package an unsigned IPA for inspection and later signing. An unsigned IPA cannot be installed directly on a standard iPhone; installation requires valid Apple signing and provisioning.
 
 ## Next steps
 
@@ -31,7 +31,7 @@ This directory contains the native iOS foundation and the first SwiftUI app shel
 2. Implement the Swift adapter over the linked llama.cpp C API, then load and run a local GGUF model with Metal.
 3. Verify Qwen GGUF download, model loading, memory use, and inference on the iPhone.
 4. Add multi-chat history, cancellation, and improved error handling.
-5. Configure Apple signing and produce a distributable IPA.
+5. Configure Apple signing and provisioning, then export and test an installable IPA on a physical iPhone.
 
 ## Model and licensing
 
