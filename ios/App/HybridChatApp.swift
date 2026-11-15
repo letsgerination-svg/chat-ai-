@@ -431,10 +431,12 @@ private struct SettingsScreen: View {
                     if !model.githubRepositories.isEmpty {
                         Text("Репозитории (\(model.githubRepositories.count))").font(.subheadline.weight(.semibold))
                         ForEach(model.githubRepositories) { repository in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(repository.full_name)
-                                Text(repository.privateRepo ? "Приватный" : "Публичный")
-                                    .font(.caption).foregroundStyle(.secondary)
+                            NavigationLink(destination: GitHubRepositoryBrowser(repository: repository)) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(repository.full_name)
+                                    Text(repository.privateRepo ? "Приватный · открыть файлы" : "Публичный · открыть файлы")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -510,6 +512,119 @@ private struct SettingsScreen: View {
                     Button("Готово") { dismiss() }
                 }
             }
+        }
+    }
+}
+
+
+private struct GitHubRepositoryBrowser: View {
+    let repository: GitHubRepository
+    var path: String = ""
+
+    @State private var items: [GitHubContentItem] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var fileName = ""
+    @State private var fileContent = ""
+    @State private var showingFile = false
+
+    private let github = GitHubIntegration()
+
+    var body: some View {
+        List {
+            if isLoading {
+                HStack { Spacer(); ProgressView("Загрузка…"); Spacer() }
+            } else if items.isEmpty {
+                Text("Папка пуста").foregroundStyle(.secondary)
+            } else {
+                ForEach(items) { item in
+                    if item.type == "dir" {
+                        NavigationLink(destination: GitHubRepositoryBrowser(repository: repository, path: item.path)) {
+                            Label(item.name, systemImage: "folder")
+                        }
+                    } else {
+                        Button {
+                            Task { await openFile(item) }
+                        } label: {
+                            Label(item.name, systemImage: "doc.text")
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle(path.isEmpty ? repository.name : (path as NSString).lastPathComponent)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await loadContents() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(isLoading)
+            }
+        }
+        .task { await loadContents() }
+        .sheet(isPresented: $showingFile) {
+            NavigationStack {
+                ScrollView {
+                    Text(fileContent)
+                        .font(.system(.footnote, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                }
+                .navigationTitle(fileName)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Готово") { showingFile = false }
+                    }
+                }
+            }
+        }
+        .alert("GitHub", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+    }
+
+    @MainActor
+    private func loadContents() async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+        let parts = repository.full_name.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else {
+            errorMessage = "Некорректное имя репозитория."
+            return
+        }
+        do {
+            items = try await github.contents(owner: parts[0], repository: parts[1], path: path)
+                .sorted { lhs, rhs in
+                    if lhs.type != rhs.type { return lhs.type == "dir" }
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func openFile(_ item: GitHubContentItem) async {
+        let parts = repository.full_name.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return }
+        do {
+            fileContent = try await github.readTextFile(owner: parts[0], repository: parts[1], path: item.path)
+            fileName = item.name
+            showingFile = true
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }
