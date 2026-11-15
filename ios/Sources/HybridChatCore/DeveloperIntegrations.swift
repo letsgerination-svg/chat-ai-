@@ -131,7 +131,7 @@ public final class GitHubIntegration: Sendable {
             sha: existingSHA,
             branch: branch
         )
-        try await send(path: "/repos/\(owner)/\(repository)/contents/\(safePath)", method: "PUT", body: body)
+        let _: GitHubWriteResult = try await send(path: "/repos/\(owner)/\(repository)/contents/\(safePath)", method: "PUT", body: try JSONEncoder().encode(body))
     }
 
     public func createPullRequest(
@@ -143,11 +143,11 @@ public final class GitHubIntegration: Sendable {
         body: String = ""
     ) async throws -> GitHubPullRequest {
         let payload = GitHubPullRequestBody(title: title, head: head, base: base, body: body)
-        return try await send(path: "/repos/\(owner)/\(repository)/pulls", method: "POST", body: payload)
+        return try await send(path: "/repos/\(owner)/\(repository)/pulls", method: "POST", body: try JSONEncoder().encode(payload))
     }
 
     private func request<T: Decodable>(path: String) async throws -> T {
-        try await send(path: path, method: "GET", body: Optional<String>.none)
+        try await send(path: path, method: "GET", body: nil)
     }
 
     private func send<Body: Encodable, Response: Decodable>(
@@ -168,7 +168,7 @@ public final class GitHubIntegration: Sendable {
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(body)
+            request.httpBody = body
         }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -185,7 +185,7 @@ public final class GitHubIntegration: Sendable {
     }
 }
 
-private struct EmptyResponse: Decodable { }
+private struct GitHubWriteResult: Decodable {\n    let content: GitHubFile?\n}
 
 public struct CloudflareAccount: Decodable, Identifiable, Sendable {
     public let id: String
@@ -233,7 +233,7 @@ public final class CloudflareIntegration: Sendable {
     }
 
     public func validateConnection() async throws {
-        let _: CloudflareEnvelope<CloudflareTokenStatus> = try await request(path: "/user/tokens/verify")
+        let _: CloudflareTokenStatus = try await request(path: "/user/tokens/verify")
     }
 
     public func accounts() async throws -> [CloudflareAccount] {
@@ -243,7 +243,7 @@ public final class CloudflareIntegration: Sendable {
 
     public func workers(accountID: String) async throws -> [CloudflareWorker] {
         let safeID = accountID.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-"))) ?? accountID
-        let envelope: CloudflareEnvelope<[CloudflareWorker]] = try await request(path: "/accounts/\(safeID)/workers/scripts")
+        let envelope: CloudflareEnvelope<[CloudflareWorker]> = try await request(path: "/accounts/\(safeID)/workers/scripts")
         return envelope.result
     }
 
