@@ -32,6 +32,15 @@ public struct GitHubPullRequest: Decodable, Sendable {
     public let state: String
 }
 
+public struct GitHubContentItem: Decodable, Identifiable, Sendable {
+    public let name: String
+    public let path: String
+    public let type: String
+    public let sha: String
+    public let size: Int?
+    public var id: String { path }
+}
+
 private struct GitHubUser: Decodable { let login: String }
 private struct GitHubFile: Decodable { let content: String?; let sha: String; let encoding: String }
 private struct GitHubWriteResult: Decodable { let content: GitHubFile? }
@@ -59,6 +68,16 @@ public final class GitHubIntegration: Sendable {
 
     public func repositories() async throws -> [GitHubRepository] {
         try await request(path: "/user/repos?sort=updated&per_page=100&affiliation=owner,collaborator,organization_member")
+    }
+
+    public func contents(owner: String, repository: String, path: String = "", branch: String? = nil) async throws -> [GitHubContentItem] {
+        let encodedPath = path.isEmpty ? "" : "/" + path.split(separator: "/").map { Self.encodePathComponent(String($0)) }.joined(separator: "/")
+        var endpoint = "/repos/\(Self.encodePathComponent(owner))/\(Self.encodePathComponent(repository))/contents\(encodedPath)"
+        if let branch, var components = URLComponents(string: endpoint) {
+            components.queryItems = [URLQueryItem(name: "ref", value: branch)]
+            endpoint = components.string ?? endpoint
+        }
+        return try await request(path: endpoint)
     }
 
     public func readTextFile(owner: String, repository: String, path: String, branch: String? = nil) async throws -> String {
