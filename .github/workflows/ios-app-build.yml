@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,3 +27,28 @@ jobs:
       - name: Build iOS app for device SDK
         working-directory: ios
         run: xcodebuild -project HybridChat.xcodeproj -scheme HybridChat -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+      - name: Archive unsigned iOS app
+        working-directory: ios
+        run: |
+          xcodebuild -project HybridChat.xcodeproj \
+            -scheme HybridChat \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/HybridChat-unsigned.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            archive
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="$RUNNER_TEMP/HybridChat-unsigned.xcarchive/Products/Applications/HybridChat.app"
+          test -d "$APP_PATH"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/ipa/Payload/HybridChat.app"
+          cd "$RUNNER_TEMP/ipa"
+          ditto -c -k --sequesterRsrc --keepParent Payload "$GITHUB_WORKSPACE/HybridChat-unsigned.ipa"
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: HybridChat-unsigned-IPA
+          path: HybridChat-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
