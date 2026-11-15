@@ -43,6 +43,12 @@ public struct GitHubContentItem: Decodable, Identifiable, Sendable {
 
 private struct GitHubUser: Decodable { let login: String }
 private struct GitHubFile: Decodable { let content: String?; let sha: String; let encoding: String }
+
+public struct GitHubFileSnapshot: Sendable {
+    public let content: String
+    public let sha: String
+    public init(content: String, sha: String) { self.content = content; self.sha = sha }
+}
 private struct GitHubWriteResult: Decodable { let content: GitHubFile? }
 private struct GitHubWriteFile: Encodable { let message: String; let content: String; let sha: String?; let branch: String? }
 private struct GitHubPullRequestBody: Encodable { let title: String; let head: String; let base: String; let body: String }
@@ -81,17 +87,21 @@ public final class GitHubIntegration: Sendable {
     }
 
     public func readTextFile(owner: String, repository: String, path: String, branch: String? = nil) async throws -> String {
+        try await readTextFileSnapshot(owner: owner, repository: repository, path: path, branch: branch).content
+    }
+
+    public func readTextFileSnapshot(owner: String, repository: String, path: String, branch: String? = nil) async throws -> GitHubFileSnapshot {
         let safePath = path.split(separator: "/").map { Self.encodePathComponent(String($0)) }.joined(separator: "/")
-        var endpoint = "/repos/\(Self.encodePathComponent(owner))/\(Self.encodePathComponent(repository))/contents/\(safePath)"
+        var endpoint = "/repos/\\(Self.encodePathComponent(owner))/\\(Self.encodePathComponent(repository))/contents/\\(safePath)"
         if let branch, var components = URLComponents(string: endpoint) {
             components.queryItems = [URLQueryItem(name: "ref", value: branch)]
             endpoint = components.string ?? endpoint
         }
         let file: GitHubFile = try await request(path: endpoint)
         guard file.encoding == "base64", let encoded = file.content,
-              let data = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
+              let data = Data(base64Encoded: encoded.replacingOccurrences(of: "\\n", with: "")),
               let text = String(data: data, encoding: .utf8) else { throw DeveloperIntegrationError.invalidResponse }
-        return text
+        return GitHubFileSnapshot(content: text, sha: file.sha)
     }
 
     public func writeTextFile(owner: String, repository: String, path: String, content: String, message: String, existingSHA: String? = nil, branch: String? = nil) async throws {
