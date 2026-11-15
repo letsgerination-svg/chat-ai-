@@ -16,7 +16,7 @@ let package = Package(
         ),
         .target(
             name: "LlamaRuntime",
-            dependencies: ["LlamaFramework"]
+            dependencies: ["LlamaFramework", "HybridChatCore"]
         ),
         .target(name: "HybridChatCore"),
         .testTarget(
