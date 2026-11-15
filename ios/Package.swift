@@ -8,6 +8,10 @@ let package = Package(
         .library(name: "HybridChatCore", targets: ["HybridChatCore"])
     ],
     targets: [
-        .target(name: "HybridChatCore")
+        .target(name: "HybridChatCore"),
+        .testTarget(
+            name: "HybridChatCoreTests",
+            dependencies: ["HybridChatCore"]
+        )
     ]
 )
