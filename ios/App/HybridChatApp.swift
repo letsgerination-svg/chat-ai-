@@ -328,19 +328,33 @@ struct ChatScreen: View {
                     }
                 }
 
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack(alignment: .bottom, spacing: 10) {
                     TextField("Сообщение…", text: $model.draft, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(1...5)
+                        .submitLabel(.send)
+                        .onSubmit {
+                            guard !model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                  !model.isSending else { return }
+                            Task { await model.send() }
+                        }
                     Button {
                         Task { await model.send() }
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 30))
+                            .font(.system(size: 32))
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Отправить сообщение")
                     .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSending)
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+                .background(.bar)
             }
             .navigationTitle("Hybrid Chat")
             .toolbar {
