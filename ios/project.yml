@@ -13,6 +13,8 @@ targets:
     deploymentTarget: "16.4"
     sources:
       - path: App
+    resources:
+      - path: THIRD_PARTY_NOTICES.md
     dependencies:
       - package: HybridChatCore
         product: HybridChatCore
