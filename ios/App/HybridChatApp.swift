@@ -26,6 +26,12 @@ final class ChatViewModel: ObservableObject {
     @Published var cloudflareConnectionStatus = "Не подключён"
     @Published var isCheckingGitHub = false
     @Published var isCheckingCloudflare = false
+    @Published var githubRepositories: [GitHubRepository] = []
+    @Published var cloudflareAccounts: [CloudflareAccount] = []
+    @Published var cloudflareWorkers: [CloudflareWorker] = []
+    @Published var selectedCloudflareAccountID = ""
+    @Published var isLoadingGitHubRepositories = false
+    @Published var isLoadingCloudflareResources = false
 
     private let githubIntegration = GitHubIntegration()
     private let cloudflareIntegration = CloudflareIntegration()
@@ -148,11 +154,27 @@ final class ChatViewModel: ObservableObject {
         do {
             let login = try await githubIntegration.validateConnection()
             githubConnectionStatus = "Подключён: @\(login)"
+            await loadGitHubRepositories()
         } catch { githubConnectionStatus = "Ошибка: \(error.localizedDescription)" }
     }
 
+    func loadGitHubRepositories() async {
+        guard !isLoadingGitHubRepositories else { return }
+        isLoadingGitHubRepositories = true
+        defer { isLoadingGitHubRepositories = false }
+        do {
+            githubRepositories = try await githubIntegration.repositories()
+        } catch {
+            githubConnectionStatus = "Ошибка загрузки репозиториев: \(error.localizedDescription)"
+        }
+    }
+
     func disconnectGitHub() {
-        do { try githubIntegration.disconnect(); githubConnectionStatus = "Отключён" }
+        do {
+            try githubIntegration.disconnect()
+            githubRepositories = []
+            githubConnectionStatus = "Отключён"
+        }
         catch { githubConnectionStatus = "Ошибка: \(error.localizedDescription)" }
     }
 
@@ -172,11 +194,45 @@ final class ChatViewModel: ObservableObject {
         do {
             try await cloudflareIntegration.validateConnection()
             cloudflareConnectionStatus = "Подключён"
+            await loadCloudflareAccounts()
         } catch { cloudflareConnectionStatus = "Ошибка: \(error.localizedDescription)" }
     }
 
+    func loadCloudflareAccounts() async {
+        guard !isLoadingCloudflareResources else { return }
+        isLoadingCloudflareResources = true
+        defer { isLoadingCloudflareResources = false }
+        do {
+            cloudflareAccounts = try await cloudflareIntegration.accounts()
+            if !cloudflareAccounts.contains(where: { $0.id == selectedCloudflareAccountID }) {
+                selectedCloudflareAccountID = cloudflareAccounts.first?.id ?? ""
+            }
+            await loadCloudflareWorkers()
+        } catch {
+            cloudflareConnectionStatus = "Ошибка загрузки аккаунтов: \(error.localizedDescription)"
+        }
+    }
+
+    func loadCloudflareWorkers() async {
+        guard !selectedCloudflareAccountID.isEmpty else {
+            cloudflareWorkers = []
+            return
+        }
+        do {
+            cloudflareWorkers = try await cloudflareIntegration.workers(accountID: selectedCloudflareAccountID)
+        } catch {
+            cloudflareConnectionStatus = "Ошибка загрузки Workers: \(error.localizedDescription)"
+        }
+    }
+
     func disconnectCloudflare() {
-        do { try cloudflareIntegration.disconnect(); cloudflareConnectionStatus = "Отключён" }
+        do {
+            try cloudflareIntegration.disconnect()
+            cloudflareAccounts = []
+            cloudflareWorkers = []
+            selectedCloudflareAccountID = ""
+            cloudflareConnectionStatus = "Отключён"
+        }
         catch { cloudflareConnectionStatus = "Ошибка: \(error.localizedDescription)" }
     }
 
@@ -369,9 +425,19 @@ private struct SettingsScreen: View {
                         .autocorrectionDisabled()
                     Button("Сохранить токен в Keychain") { model.saveGitHubToken() }
                         .disabled(model.githubTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Button("Проверить подключение") { Task { await model.checkGitHubConnection() } }
-                    if model.isCheckingGitHub { ProgressView() }
+                    Button("Проверить подключение и загрузить репозитории") { Task { await model.checkGitHubConnection() } }
+                    if model.isCheckingGitHub || model.isLoadingGitHubRepositories { ProgressView() }
                     Text(model.githubConnectionStatus).font(.footnote)
+                    if !model.githubRepositories.isEmpty {
+                        Text("Репозитории (\(model.githubRepositories.count))").font(.subheadline.weight(.semibold))
+                        ForEach(model.githubRepositories) { repository in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(repository.full_name)
+                                Text(repository.privateRepo ? "Приватный" : "Публичный")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     Button("Отключить GitHub", role: .destructive) { model.disconnectGitHub() }
                     Text("Fine-grained token только для нужных репозиториев: Metadata read, Contents read/write, Pull requests read/write.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -383,9 +449,23 @@ private struct SettingsScreen: View {
                         .autocorrectionDisabled()
                     Button("Сохранить токен в Keychain") { model.saveCloudflareToken() }
                         .disabled(model.cloudflareTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Button("Проверить подключение") { Task { await model.checkCloudflareConnection() } }
-                    if model.isCheckingCloudflare { ProgressView() }
+                    Button("Проверить подключение и загрузить аккаунты") { Task { await model.checkCloudflareConnection() } }
+                    if model.isCheckingCloudflare || model.isLoadingCloudflareResources { ProgressView() }
                     Text(model.cloudflareConnectionStatus).font(.footnote)
+                    if !model.cloudflareAccounts.isEmpty {
+                        Picker("Аккаунт", selection: $model.selectedCloudflareAccountID) {
+                            ForEach(model.cloudflareAccounts) { account in
+                                Text(account.name).tag(account.id)
+                            }
+                        }
+                        .onChange(of: model.selectedCloudflareAccountID) { _ in
+                            Task { await model.loadCloudflareWorkers() }
+                        }
+                        Text("Workers (\(model.cloudflareWorkers.count))").font(.subheadline.weight(.semibold))
+                        ForEach(model.cloudflareWorkers) { worker in
+                            Text(worker.id)
+                        }
+                    }
                     Button("Отключить Cloudflare", role: .destructive) { model.disconnectCloudflare() }
                     Text("Используйте API Token с минимальными правами на нужный аккаунт. Не используйте Global API Key.")
                         .font(.footnote).foregroundStyle(.secondary)
