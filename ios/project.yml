@@ -1,0 +1,27 @@
+name: HybridChat
+options:
+  bundleIdPrefix: com.letsgerination
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  HybridChatCore:
+    path: .
+targets:
+  HybridChat:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: App
+    dependencies:
+      - package: HybridChatCore
+        product: HybridChatCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.letsgerination.hybridchat
+        PRODUCT_NAME: HybridChat
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Hybrid Chat
+        CODE_SIGNING_ALLOWED: NO
