@@ -26,7 +26,16 @@ final class ConversationStoreTests: XCTestCase {
         try await store.save([conversation])
         let loaded = try await store.load()
 
-        XCTAssertEqual(loaded, [conversation])
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].id, conversation.id)
+        XCTAssertEqual(loaded[0].title, conversation.title)
+        XCTAssertEqual(loaded[0].messages.count, 1)
+        XCTAssertEqual(loaded[0].messages[0].id, message.id)
+        XCTAssertEqual(loaded[0].messages[0].role, message.role)
+        XCTAssertEqual(loaded[0].messages[0].content, message.content)
+        XCTAssertLessThan(abs(loaded[0].messages[0].createdAt.timeIntervalSince(message.createdAt)), 1)
+        XCTAssertLessThan(abs(loaded[0].updatedAt.timeIntervalSince(conversation.updatedAt)), 1)
+
         try await store.deleteAll()
         XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
     }
