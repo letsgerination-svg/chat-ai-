@@ -30,10 +30,20 @@ public enum ChatProviderID: String, Sendable {
     case remote
 }
 
-public enum ChatMode: String, Codable, Sendable {
+public enum ChatMode: String, Codable, Sendable, CaseIterable, Hashable, Identifiable {
     case automatic
     case offlineOnly
     case onlineOnly
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .automatic: return "Автоматически"
+        case .offlineOnly: return "Только офлайн"
+        case .onlineOnly: return "Только онлайн"
+        }
+    }
 }
 
 public enum ChatProviderError: Error, LocalizedError {
