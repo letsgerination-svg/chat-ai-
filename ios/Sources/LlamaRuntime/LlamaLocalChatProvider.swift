@@ -90,6 +90,7 @@ public actor LlamaEngine {
                 do {
                     try prepare(prompt: prompt)
                     for _ in 0..<maxTokens {
+                        guard currentPosition < contextLength else { break }
                         try Task.checkCancellation()
                         guard let piece = try nextTokenPiece() else { break }
                         if !piece.isEmpty {
@@ -136,17 +137,18 @@ public actor LlamaEngine {
                 )
             }
             guard tokenCount > 0 else { throw LlamaRuntimeError.promptEvaluationFailed }
+            guard tokenCount < contextLength else { throw LlamaRuntimeError.promptTooLong }
             for index in 0..<Int(tokenCount) {
                 addToken(largerBuffer[index], position: Int32(index), wantsLogits: index == Int(tokenCount) - 1)
             }
         } else {
             guard tokenCount > 0 else { throw LlamaRuntimeError.promptEvaluationFailed }
+            guard tokenCount < contextLength else { throw LlamaRuntimeError.promptTooLong }
             for index in 0..<Int(tokenCount) {
                 addToken(tokenBuffer[index], position: Int32(index), wantsLogits: index == Int(tokenCount) - 1)
             }
         }
 
-        guard tokenCount < contextLength else { throw LlamaRuntimeError.promptTooLong }
         guard llama_decode(context, batch) == 0 else {
             throw LlamaRuntimeError.promptEvaluationFailed
         }
