@@ -76,7 +76,7 @@ public final class GitHubIntegration: Sendable {
     }
 
     public func writeTextFile(owner: String, repository: String, path: String, content: String, message: String, existingSHA: String? = nil, branch: String? = nil) async throws {
-        let safePath = path.split(separator: "/").map(Self.encodePathComponent).joined(separator: "/")
+        let safePath = path.split(separator: "/").map { Self.encodePathComponent(String($0)) }.joined(separator: "/")
         let payload = GitHubWriteFile(message: message, content: Data(content.utf8).base64EncodedString(), sha: existingSHA, branch: branch)
         let _: GitHubWriteResult = try await send(path: "/repos/\(Self.encodePathComponent(owner))/\(Self.encodePathComponent(repository))/contents/\(safePath)", method: "PUT", body: try JSONEncoder().encode(payload))
     }
