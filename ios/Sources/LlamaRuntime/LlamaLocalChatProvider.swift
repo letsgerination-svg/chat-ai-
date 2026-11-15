@@ -66,12 +66,7 @@ public actor LlamaEngine {
         vocabulary = llama_model_get_vocab(loadedModel)
 
         let samplerParams = llama_sampler_chain_default_params()
-        guard let createdSampler = llama_sampler_chain_init(samplerParams) else {
-            llama_free(createdContext)
-            llama_model_free(loadedModel)
-            llama_backend_free()
-            throw LlamaRuntimeError.contextCreationFailed
-        }
+        let createdSampler = llama_sampler_chain_init(samplerParams)
         sampler = createdSampler
         llama_sampler_chain_add(createdSampler, llama_sampler_init_temp(0.7))
         llama_sampler_chain_add(createdSampler, llama_sampler_init_dist(UInt32.max))
