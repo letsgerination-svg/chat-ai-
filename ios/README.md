@@ -11,6 +11,7 @@ This directory contains the native iOS foundation and the first SwiftUI app shel
 - `KeychainAPIKeyStore.swift`: API credential storage in iOS Keychain.
 - `DeepSeekChatProvider.swift`: streaming DeepSeek Chat Completions adapter.
 - `NetworkStatusMonitor.swift`: native Network framework reachability monitor.
+- `LlamaRuntime`: linked to the official `llama.cpp` b12387 Apple XCFramework, including the Metal backend.
 - `App/HybridChatApp.swift`: initial Russian SwiftUI chat screen, mode selector, local history, and API-key settings.
 - `project.yml`: XcodeGen specification for the iOS app target.
 - `Tests/HybridChatCoreTests`: routing and persistence tests.
@@ -19,7 +20,7 @@ This directory contains the native iOS foundation and the first SwiftUI app shel
 
 ## Current limitations
 
-- The local inference provider is currently an unavailable placeholder. Offline generation is not implemented yet.
+- The official llama.cpp XCFramework is pinned and linked, but the Swift model-loading/token-generation adapter and GGUF model manager are not implemented yet. Offline generation is not available in the app at this stage.
 - The app can use DeepSeek after the user adds their own API key in Settings. The key is kept in Keychain and is not bundled into the app.
 - The current history UI opens the most recent conversation; a multi-conversation sidebar/list is still pending.
 - The current simulator workflow verifies compilation only. It does not create a signed IPA.
@@ -27,7 +28,7 @@ This directory contains the native iOS foundation and the first SwiftUI app shel
 ## Next steps
 
 1. Confirm the Xcode Simulator build is green and fix any compiler issues.
-2. Integrate llama.cpp with Metal and implement local GGUF model loading/inference.
+2. Implement the Swift adapter over the linked llama.cpp C API, then load and run a local GGUF model with Metal.
 3. Add model download/storage controls and model selection.
 4. Add multi-chat history, cancellation, and improved error handling.
 5. Configure Apple signing and produce a distributable IPA.
