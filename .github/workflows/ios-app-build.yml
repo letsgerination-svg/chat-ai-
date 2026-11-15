@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ios-simulator-build:
+  ios-device-build:
     runs-on: macos-15
     steps:
       - name: Check out repository
@@ -23,6 +23,6 @@ jobs:
       - name: Generate Xcode project
         working-directory: ios
         run: xcodegen generate
-      - name: Build iOS app for simulator
+      - name: Build iOS app for device SDK
         working-directory: ios
-        run: xcodebuild -project HybridChat.xcodeproj -scheme HybridChat -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project HybridChat.xcodeproj -scheme HybridChat -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
