@@ -526,7 +526,13 @@ private struct GitHubRepositoryBrowser: View {
     @State private var errorMessage: String?
     @State private var fileName = ""
     @State private var fileContent = ""
+    @State private var originalContent = ""
+    @State private var fileSHA = ""
+    @State private var filePath = ""
     @State private var showingFile = false
+    @State private var showingDiff = false
+    @State private var showingSaveConfirmation = false
+    @State private var isSavingFile = false
 
     private let github = GitHubIntegration()
 
@@ -568,19 +574,45 @@ private struct GitHubRepositoryBrowser: View {
         .task { await loadContents() }
         .sheet(isPresented: $showingFile) {
             NavigationStack {
-                ScrollView {
-                    Text(fileContent)
-                        .font(.system(.footnote, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
+                Group {
+                    if showingDiff {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Исходная версия").font(.headline)
+                                Text(originalContent).font(.system(.caption, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(8).background(Color.red.opacity(0.08))
+                                Text("Новая версия").font(.headline)
+                                Text(fileContent).font(.system(.caption, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(8).background(Color.green.opacity(0.08))
+                            }.padding()
+                        }
+                    } else {
+                        TextEditor(text: $fileContent).font(.system(.body, design: .monospaced))
+                    }
                 }
                 .navigationTitle(fileName)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Готово") { showingFile = false }
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(showingDiff ? "Редактор" : "Предпросмотр") { showingDiff.toggle() }
+                            .disabled(isSavingFile)
                     }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Сохранить") { showingSaveConfirmation = true }
+                            .disabled(isSavingFile || fileContent == originalContent || showingDiff)
+                    }
+                    ToolbarItem(placement: .bottomBar) {
+                        Button("Закрыть") { showingFile = false }
+                    }
+                }
+                .overlay { if isSavingFile { ProgressView("Сохранение в GitHub…") } }
+                .confirmationDialog("Записать изменения в GitHub?", isPresented: $showingSaveConfirmation, titleVisibility: .visible) {
+                    Button("Подтвердить запись", role: .destructive) { Task { await saveFileChanges() } }
+                    Button("Отмена", role: .cancel) {}
+                } message: {
+                    Text("Будет создан коммит с изменениями файла \\(filePath).")
                 }
             }
         }
@@ -620,11 +652,37 @@ private struct GitHubRepositoryBrowser: View {
         let parts = repository.full_name.split(separator: "/", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return }
         do {
-            fileContent = try await github.readTextFile(owner: parts[0], repository: parts[1], path: item.path)
+            let snapshot = try await github.readTextFileSnapshot(owner: parts[0], repository: parts[1], path: item.path)
+            originalContent = snapshot.content
+            fileContent = snapshot.content
+            fileSHA = snapshot.sha
+            filePath = item.path
             fileName = item.name
+            showingDiff = false
             showingFile = true
         } catch {
             errorMessage = error.localizedDescription
         }
     }
+    
+    @MainActor
+    private func saveFileChanges() async {
+        guard fileContent != originalContent, !isSavingFile else { return }
+        let parts = repository.full_name.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { errorMessage = "Некорректное имя репозитория."; return }
+        isSavingFile = true
+        defer { isSavingFile = false }
+        do {
+            try await github.writeTextFile(
+                owner: parts[0], repository: parts[1], path: filePath,
+                content: fileContent, message: "Update \\(filePath)", existingSHA: fileSHA
+            )
+            originalContent = fileContent
+            showingFile = false
+            await loadContents()
+        } catch {
+            errorMessage = "Не удалось сохранить файл: \\(error.localizedDescription)"
+        }
+    }
+
 }
