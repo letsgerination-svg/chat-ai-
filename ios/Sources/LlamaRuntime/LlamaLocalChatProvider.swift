@@ -25,7 +25,7 @@ public actor LlamaEngine {
     private let model: OpaquePointer
     private let context: OpaquePointer
     private let vocabulary: OpaquePointer
-    private let sampler: OpaquePointer
+    private let sampler: UnsafeMutablePointer<llama_sampler>
     private var batch: llama_batch
     private let contextLength: Int32
     private var currentPosition: Int32 = 0
@@ -66,7 +66,12 @@ public actor LlamaEngine {
         vocabulary = llama_model_get_vocab(loadedModel)
 
         let samplerParams = llama_sampler_chain_default_params()
-        let createdSampler = llama_sampler_chain_init(samplerParams)
+        guard let createdSampler = llama_sampler_chain_init(samplerParams) else {
+            llama_free(createdContext)
+            llama_model_free(loadedModel)
+            llama_backend_free()
+            throw LlamaRuntimeError.contextCreationFailed
+        }
         sampler = createdSampler
         llama_sampler_chain_add(createdSampler, llama_sampler_init_temp(0.7))
         llama_sampler_chain_add(createdSampler, llama_sampler_init_dist(UInt32.max))
