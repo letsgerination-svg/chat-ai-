@@ -86,7 +86,7 @@ public actor LlamaEngine {
         maxTokens: Int = 384
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     try prepare(prompt: prompt)
                     for _ in 0..<maxTokens {
@@ -106,6 +106,7 @@ public actor LlamaEngine {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
         }
     }
 
