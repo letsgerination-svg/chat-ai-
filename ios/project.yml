@@ -16,6 +16,8 @@ targets:
     dependencies:
       - package: HybridChatCore
         product: HybridChatCore
+      - package: HybridChatCore
+        product: LlamaRuntime
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.letsgerination.hybridchat
